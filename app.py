@@ -8,7 +8,6 @@ from sklearn.linear_model import LogisticRegression
 # 1. Page Configuration
 st.set_page_config(
     page_title="HeartGuard AI — Clinical Risk Assessor",
-    page_icon="🫀",
     layout="wide"
 )
 
@@ -39,12 +38,12 @@ def load_and_train_pipeline():
     model = LogisticRegression(max_iter=1000)
     model.fit(X_train_scaled, y_train)
 
-    return model, scaler, X.columns
+    return model, scaler, X.columns.tolist()
 
 logistic_model, scaler, feature_columns = load_and_train_pipeline()
 
 # 3. Header & User Profile Selection
-st.title("🫀 HeartGuard — AI Clinical Risk Assessor")
+st.title("HeartGuard — AI Clinical Risk Assessor")
 st.write("Select your access profile to adjust the required clinical input level.")
 
 user_role = st.radio(
@@ -57,7 +56,7 @@ st.markdown("---")
 
 # 4. Input Form Construction
 with st.form("risk_assessment_form"):
-    st.subheader("📋 Patient Baseline Attributes")
+    st.subheader("Patient Baseline Attributes")
     
     col1, col2 = st.columns(2)
     
@@ -72,7 +71,7 @@ with st.form("risk_assessment_form"):
 
     if "Specialist" in user_role:
         st.markdown("---")
-        st.subheader("🔬 Advanced Diagnostic Features (Specialist Mode)")
+        st.subheader("Advanced Diagnostic Features (Specialist Mode)")
         
         adv_col1, adv_col2 = st.columns(2)
         
@@ -101,51 +100,77 @@ with st.form("risk_assessment_form"):
 
 # 5. Prediction Logic
 if submit_button:
-    input_df = pd.DataFrame(0, index=[0], columns=feature_columns)
+    input_dict = {col: 0 for col in feature_columns}
 
-    input_df["age"] = age
-    input_df["resting_blood_pressure"] = trestbps
-    input_df["cholestoral"] = chol
-    input_df["max_heart_rate"] = thalach
-    input_df["oldpeak"] = oldpeak
+    for col_name in input_dict.keys():
+        if "age" in col_name.lower(): input_dict[col_name] = age
+        if "resting" in col_name.lower() or "trestbps" in col_name.lower(): input_dict[col_name] = trestbps
+        if "chol" in col_name.lower(): input_dict[col_name] = chol
+        if "max" in col_name.lower() or "thalach" in col_name.lower(): input_dict[col_name] = thalach
+        if "oldpeak" in col_name.lower(): input_dict[col_name] = oldpeak
 
     if sex == "Male":
-        for col in ["sex_1", "sex_Male"]:
-            if col in input_df.columns: input_df[col] = 1
+        for col in input_dict:
+            if "sex" in col.lower() and ("1" in col or "male" in col): input_dict[col] = 1
 
-    if cp == "Atypical Angina" and "chest_pain_type_1" in input_df.columns: input_df["chest_pain_type_1"] = 1
-    elif cp == "Non-Anginal Pain" and "chest_pain_type_2" in input_df.columns: input_df["chest_pain_type_2"] = 1
-    elif cp == "Asymptomatic" and "chest_pain_type_3" in input_df.columns: input_df["chest_pain_type_3"] = 1
+    if fbs == "True":
+        for col in input_dict:
+            if "fasting" in col.lower() and "1" in col: input_dict[col] = 1
 
-    if fbs == "True" and "fasting_blood_sugar_1" in input_df.columns: input_df["fasting_blood_sugar_1"] = 1
+    if exang == "Yes":
+        for col in input_dict:
+            if "exercise" in col.lower() and "1" in col: input_dict[col] = 1
 
-    if restecg == "ST-T Wave Abnormality" and "rest_ecg_1" in input_df.columns: input_df["rest_ecg_1"] = 1
-    elif restecg == "Left Ventricular Hypertrophy" and "rest_ecg_2" in input_df.columns: input_df["rest_ecg_2"] = 1
+    if cp == "Atypical Angina":
+        for col in input_dict:
+            if "chest" in col.lower() and "1" in col: input_dict[col] = 1
+    elif cp == "Non-Anginal Pain":
+        for col in input_dict:
+            if "chest" in col.lower() and "2" in col: input_dict[col] = 1
+    elif cp == "Asymptomatic":
+        for col in input_dict:
+            if "chest" in col.lower() and "3" in col: input_dict[col] = 1
 
-    if exang == "Yes" and "exercise_induced_angina_1" in input_df.columns: input_df["exercise_induced_angina_1"] = 1
+    if restecg == "ST-T Wave Abnormality":
+        for col in input_dict:
+            if "rest" in col.lower() and "1" in col: input_dict[col] = 1
+    elif restecg == "Left Ventricular Hypertrophy":
+        for col in input_dict:
+            if "rest" in col.lower() and "2" in col: input_dict[col] = 1
 
-    if slope == "Flat" and "slope_1" in input_df.columns: input_df["slope_1"] = 1
-    elif slope == "Downsloping" and "slope_2" in input_df.columns: input_df["slope_2"] = 1
+    if slope == "Flat":
+        for col in input_dict:
+            if "slope" in col.lower() and "1" in col: input_dict[col] = 1
+    elif slope == "Downsloping":
+        for col in input_dict:
+            if "slope" in col.lower() and "2" in col: input_dict[col] = 1
 
-    if ca > 0 and f"vessels_colored_by_flourosopy_{ca}" in input_df.columns:
-        input_df[f"vessels_colored_by_flourosopy_{ca}"] = 1
+    if ca > 0:
+        for col in input_dict:
+            if "vessels" in col.lower() and str(ca) in col: input_dict[col] = 1
 
-    if thal == "Fixed Defect" and "thalassemia_1" in input_df.columns: input_df["thalassemia_1"] = 1
-    elif thal == "Reversible Defect" and "thalassemia_2" in input_df.columns: input_df["thalassemia_2"] = 1
+    if thal == "Fixed Defect":
+        for col in input_dict:
+            if "thalassemia" in col.lower() and "1" in col: input_dict[col] = 1
+    elif thal == "Reversible Defect":
+        for col in input_dict:
+            if "thalassemia" in col.lower() and "2" in col: input_dict[col] = 1
+
+    input_df = pd.DataFrame([input_dict])[feature_columns]
 
     input_scaled = scaler.transform(input_df)
     prediction = logistic_model.predict(input_scaled)[0]
     probability = logistic_model.predict_proba(input_scaled)[0][1] * 100
 
     st.markdown("---")
-    st.subheader("📊 Diagnostic Outcome")
+    st.subheader("Diagnostic Outcome")
     
     if prediction == 1:
-        st.error(f"⚠️ **High Cardiovascular Risk Detected!** Risk Probability: **{probability:.1f}%**")
+        st.error(f"High Cardiovascular Risk Detected! Risk Probability: {probability:.1f}%")
         if "Standard" in user_role:
-            st.info("💡 **Recommendation:** Please consult a cardiologist for further diagnostic evaluation.")
+            st.info("Recommendation: Please consult a cardiologist for further diagnostic evaluation.")
         else:
-            st.warning("🩺 **Clinical Note:** Positive classification based on trained feature thresholds.")
+            st.warning("Clinical Note: Positive classification based on trained feature thresholds.")
     else:
-        st.success(f"✅ **Low Cardiovascular Risk.** Risk Probability: **{probability:.1f}%**")
-        st.info("💡 **Recommendation:** Maintain a healthy lifestyle and schedule annual medical checkups.")
+        st.success(f"Low Cardiovascular Risk. Risk Probability: {probability:.1f}%")
+        st.info("Recommendation: Maintain a healthy lifestyle and schedule annual medical checkups.")
