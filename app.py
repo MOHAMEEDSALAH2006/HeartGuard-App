@@ -1,50 +1,32 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+import warnings
+warnings.filterwarnings('ignore')
+
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression
 
 # 1. Page Configuration
 st.set_page_config(
-    page_title="HeartGuard AI — Clinical Risk Assessor",
+    page_title="Heart Guard AI",
     layout="wide"
 )
 
-# 2. Pipeline Training & Caching
-@st.cache_resource
-def load_and_train_pipeline():
-    df = pd.read_csv("HeartDiseaseTrain-Test.csv")
-    df = df.drop_duplicates()
-
-    df_encoded = pd.get_dummies(
-        df,
-        columns=['sex', 'chest_pain_type', 'fasting_blood_sugar', 'rest_ecg', 
-                 'exercise_induced_angina', 'slope', 'vessels_colored_by_flourosopy', 'thalassemia'],
-        drop_first=True,
-        dtype=int
-    )
-
-    X = df_encoded.drop('target', axis=1)
-    y = df_encoded['target']
-
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42, stratify=y
-    )
-
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train)
-
-    model = LogisticRegression(max_iter=1000)
-    model.fit(X_train_scaled, y_train)
-
-    return model, scaler, X.columns.tolist()
-
-logistic_model, scaler, feature_columns = load_and_train_pipeline()
-
-# 3. Header & User Profile Selection
+# 2. Title & Team/Tools Subheader
 st.title("HeartGuard — AI Clinical Risk Assessor")
-st.write("Select your access profile to adjust the required clinical input level.")
+
+# إضافة أسماء التيم والأدوات بخط صغير تحت العنوان مباشرة
+st.markdown(
+    """
+    <p style='color: #888888; font-size: 14px; margin-top: -10px; margin-bottom: 20px;'>
+    <b>Team:</b> Mohamed Salah, Abdelmoniem Elsayed, Mariam Mahmoud, Rahma Maged, Dai Alaa &nbsp;|&nbsp; 
+    <b>Tools:</b> Python, Streamlit, Scikit-Learn, Pandas, NumPy, Logistic Regression
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
 user_role = st.radio(
     "Select User Profile:",
@@ -54,7 +36,43 @@ user_role = st.radio(
 
 st.markdown("---")
 
-# 4. Input Form Construction
+# 3. Data Loading & Model Training
+@st.cache_resource
+def train_model():
+    # Data Loading
+    df = pd.read_csv("HeartDiseaseTrain-Test.csv")
+
+    # Duplicates Removal
+    df = df.drop_duplicates()
+
+    # Categorical Encoding
+    df_encoded = pd.get_dummies(
+        df,
+        columns=['sex', 'chest_pain_type', 'fasting_blood_sugar', 'rest_ecg', 'exercise_induced_angina', 'slope', 'vessels_colored_by_flourosopy', 'thalassemia'],
+        drop_first=True,
+        dtype=int
+    )
+
+    # Train Test Split
+    X = df_encoded.drop('target', axis=1)
+    y = df_encoded['target']
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X, y, test_size=0.2, random_state=42, stratify=y
+    )
+
+    # Feature Scaling
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+
+    # Model Training
+    logistic_model = LogisticRegression(max_iter=1000).fit(X_train_scaled, y_train)
+
+    return logistic_model, scaler, X.columns.tolist()
+
+logistic_model, scaler, feature_columns = train_model()
+
+# 4. Inputs Form
 with st.form("risk_assessment_form"):
     st.subheader("Patient Baseline Attributes")
     
@@ -100,65 +118,34 @@ with st.form("risk_assessment_form"):
 
 # 5. Prediction Logic
 if submit_button:
-    input_dict = {col: 0 for col in feature_columns}
-
-    for col_name in input_dict.keys():
-        if "age" in col_name.lower(): input_dict[col_name] = age
-        if "resting" in col_name.lower() or "trestbps" in col_name.lower(): input_dict[col_name] = trestbps
-        if "chol" in col_name.lower(): input_dict[col_name] = chol
-        if "max" in col_name.lower() or "thalach" in col_name.lower(): input_dict[col_name] = thalach
-        if "oldpeak" in col_name.lower(): input_dict[col_name] = oldpeak
-
-    if sex == "Male":
-        for col in input_dict:
-            if "sex" in col.lower() and ("1" in col or "male" in col): input_dict[col] = 1
-
-    if fbs == "True":
-        for col in input_dict:
-            if "fasting" in col.lower() and "1" in col: input_dict[col] = 1
-
-    if exang == "Yes":
-        for col in input_dict:
-            if "exercise" in col.lower() and "1" in col: input_dict[col] = 1
-
-    if cp == "Atypical Angina":
-        for col in input_dict:
-            if "chest" in col.lower() and "1" in col: input_dict[col] = 1
-    elif cp == "Non-Anginal Pain":
-        for col in input_dict:
-            if "chest" in col.lower() and "2" in col: input_dict[col] = 1
-    elif cp == "Asymptomatic":
-        for col in input_dict:
-            if "chest" in col.lower() and "3" in col: input_dict[col] = 1
-
-    if restecg == "ST-T Wave Abnormality":
-        for col in input_dict:
-            if "rest" in col.lower() and "1" in col: input_dict[col] = 1
-    elif restecg == "Left Ventricular Hypertrophy":
-        for col in input_dict:
-            if "rest" in col.lower() and "2" in col: input_dict[col] = 1
-
-    if slope == "Flat":
-        for col in input_dict:
-            if "slope" in col.lower() and "1" in col: input_dict[col] = 1
-    elif slope == "Downsloping":
-        for col in input_dict:
-            if "slope" in col.lower() and "2" in col: input_dict[col] = 1
-
-    if ca > 0:
-        for col in input_dict:
-            if "vessels" in col.lower() and str(ca) in col: input_dict[col] = 1
-
-    if thal == "Fixed Defect":
-        for col in input_dict:
-            if "thalassemia" in col.lower() and "1" in col: input_dict[col] = 1
-    elif thal == "Reversible Defect":
-        for col in input_dict:
-            if "thalassemia" in col.lower() and "2" in col: input_dict[col] = 1
-
-    input_df = pd.DataFrame([input_dict])[feature_columns]
-
-    input_scaled = scaler.transform(input_df)
+    raw_input = {
+        'age': age,
+        'sex': sex,
+        'chest_pain_type': cp,
+        'resting_blood_pressure': trestbps,
+        'cholestoral': chol,
+        'fasting_blood_sugar': 1 if fbs == "True" else 0,
+        'rest_ecg': restecg,
+        'max_heart_rate_achieved': thalach,
+        'exercise_induced_angina': exang,
+        'oldpeak': oldpeak,
+        'slope': slope,
+        'vessels_colored_by_flourosopy': ca,
+        'thalassemia': thal
+    }
+    
+    input_df_raw = pd.DataFrame([raw_input])
+    
+    input_encoded = pd.get_dummies(
+        input_df_raw,
+        columns=['sex', 'chest_pain_type', 'fasting_blood_sugar', 'rest_ecg', 'exercise_induced_angina', 'slope', 'vessels_colored_by_flourosopy', 'thalassemia'],
+        drop_first=True,
+        dtype=int
+    )
+    
+    input_final = input_encoded.reindex(columns=feature_columns, fill_value=0)
+    
+    input_scaled = scaler.transform(input_final)
     prediction = logistic_model.predict(input_scaled)[0]
     probability = logistic_model.predict_proba(input_scaled)[0][1] * 100
 
